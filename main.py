@@ -2,130 +2,131 @@ import sys
 from collections import defaultdict
 from typing import List, Dict
 
-def create_dict(dict_path: str) -> Dict[str, int]:
-    print("Creating a dictionary")
-    corpus = defaultdict(int)
-    with open(dict_path, 'r', encoding='utf-8') as file:
-        strng = ""
-        prev = file.read(1)
-        strng += prev
+def build_corpus(file_path: str) -> Dict[str, int]:
+    print("Building corpus from file")
+    word_sequence = defaultdict(int)
+    with open(file_path, 'r', encoding='utf-8') as f:
+        sequence = ""
+        prev_char = f.read(1)
+        sequence += prev_char
         for _ in range(3):
-            c = file.read(1)
-            if prev == ' ' and c == ' ':
+            current_char = f.read(1)
+            if prev_char == ' ' and current_char == ' ':
                 while True:
-                    c = file.read(1)
-                    if c != prev:
+                    current_char = f.read(1)
+                    if current_char != prev_char:
                         break
-            strng += c
-            prev = c
-        corpus[strng] += 1
-        corpus["count"] += 1
+            sequence += current_char
+            prev_char = current_char
+        word_sequence[sequence] += 1
+        word_sequence["total"] += 1
 
         while True:
-            c = file.read(1)
-            if not c:
+            current_char = f.read(1)
+            if not current_char:
                 break
-            if prev == ' ' and c == ' ':
+            if prev_char == ' ' and current_char == ' ':
                 while True:
-                    c = file.read(1)
-                    if c != prev:
+                    current_char = f.read(1)
+                    if current_char != prev_char:
                         break
-            prev = c
-            strng += c
-            strng = strng[1:]
-            corpus[strng] += 1
-            corpus["count"] += 1
+            prev_char = current_char
+            sequence += current_char
+            sequence = sequence[1:]
+            word_sequence[sequence] += 1
+            word_sequence["total"] += 1
 
-    print("Done with the dictionary")
-    return corpus
+    print("Corpus built successfully")
+    return word_sequence
 
-def probability(corpus: Dict[str, int], strng: str) -> float:
-    return float(corpus[strng] + 1) / float(len(corpus) + corpus["count"])
+def calculate_probability(word_sequence: Dict[str, int], seq: str) -> float:
+    return float(word_sequence[seq] + 1) / float(len(word_sequence) + word_sequence["total"])
 
-def read_input(input_path: str) -> List[List[str]]:
-    input_matrix = []
-    with open(input_path, 'r', encoding='utf-8') as file:
-        for line in file:
-            parts = line.strip().split('|')[1:-1]
-            input_matrix.append(parts)
-    return input_matrix
+def load_input(file_path: str) -> List[List[str]]:
+    matrix = []
+    with open(file_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            elements = line.strip().split('|')[1:-1]
+            matrix.append(elements)
+    return matrix
 
-def strip_correction(corpus: Dict[str, int], left: List[str], right: List[str]) -> float:
-    prod = 1.0
-    for l, r in zip(left, right):
-        prod *= probability(corpus, l + r)
-    return prod
+def compute_joint_probability(word_sequence: Dict[str, int], left_seq: List[str], right_seq: List[str]) -> float:
+    joint_prob = 1.0
+    for l_seq, r_seq in zip(left_seq, right_seq):
+        joint_prob *= calculate_probability(word_sequence, l_seq + r_seq)
+    return joint_prob
 
-def print_matrix(matrix: List[List[str]]):
+def display_matrix(matrix: List[List[str]]):
     for row in matrix:
-        print(' '.join(f"({elem})" for elem in row))
+        print(' '.join(f"({element})" for element in row))
 
-def display_output(matrix: List[List[str]]):
+def print_result(matrix: List[List[str]]):
     for row in matrix:
         print(''.join(row))
 
-def reorder(corpus: Dict[str, int], input_matrix: List[List[str]]) -> List[List[str]]:
-    ele1, ele2 = 0, 0
-    max_pair_prob = -float('inf')
-    correct_strips = []
-    for i in range(len(input_matrix)):
-        for j in range(len(input_matrix)):
+def rearrange(word_sequence: Dict[str, int], matrix: List[List[str]]) -> List[List[str]]:
+    idx1, idx2 = 0, 0
+    highest_prob = -float('inf')
+    ordered_strips = []
+
+    for i in range(len(matrix)):
+        for j in range(len(matrix)):
             if i != j:
-                pair_prob = strip_correction(corpus, input_matrix[i], input_matrix[j])
-                if pair_prob > max_pair_prob:
-                    ele1, ele2 = i, j
-                    max_pair_prob = pair_prob
+                joint_prob = compute_joint_probability(word_sequence, matrix[i], matrix[j])
+                if joint_prob > highest_prob:
+                    idx1, idx2 = i, j
+                    highest_prob = joint_prob
 
-    correct_strips.append(input_matrix[ele1])
-    correct_strips.append(input_matrix[ele2])
+    ordered_strips.append(matrix[idx1])
+    ordered_strips.append(matrix[idx2])
 
-    if ele1 > ele2:
-        input_matrix.pop(ele1)
-        input_matrix.pop(ele2)
+    if idx1 > idx2:
+        matrix.pop(idx1)
+        matrix.pop(idx2)
     else:
-        input_matrix.pop(ele2)
-        input_matrix.pop(ele1)
+        matrix.pop(idx2)
+        matrix.pop(idx1)
 
-    while input_matrix:
-        max_left = max_right = -float('inf')
-        right_index = left_index = 0
+    while matrix:
+        left_prob_max = right_prob_max = -float('inf')
+        right_pos = left_pos = 0
 
-        for i in range(len(input_matrix)):
-            left_prob = strip_correction(corpus, input_matrix[i], correct_strips[0])
-            if left_prob > max_left:
-                left_index = i
-                max_left = left_prob
+        for i in range(len(matrix)):
+            left_prob = compute_joint_probability(word_sequence, matrix[i], ordered_strips[0])
+            if left_prob > left_prob_max:
+                left_pos = i
+                left_prob_max = left_prob
 
-            right_prob = strip_correction(corpus, correct_strips[-1], input_matrix[i])
-            if right_prob > max_right:
-                right_index = i
-                max_right = right_prob
+            right_prob = compute_joint_probability(word_sequence, ordered_strips[-1], matrix[i])
+            if right_prob > right_prob_max:
+                right_pos = i
+                right_prob_max = right_prob
 
-        if max_right >= max_left:
-            correct_strips.append(input_matrix[right_index])
-            del_index = right_index
+        if right_prob_max >= left_prob_max:
+            ordered_strips.append(matrix[right_pos])
+            del_pos = right_pos
         else:
-            correct_strips.insert(0, input_matrix[left_index])
-            del_index = left_index
+            ordered_strips.insert(0, matrix[left_pos])
+            del_pos = left_pos
 
-        input_matrix.pop(del_index)
+        matrix.pop(del_pos)
 
-    return correct_strips
+    return ordered_strips
 
-def transpose_matrix(matrix: List[List[str]]) -> List[List[str]]:
+def transpose(matrix: List[List[str]]) -> List[List[str]]:
     return [list(row) for row in zip(*matrix)]
 
 def main():
-    corpus = create_dict('plrabn12.txt')
+    corpus = build_corpus('plrabn12.txt')
 
-    input_matrix = read_input('input.txt')
-    print_matrix(input_matrix)
+    input_matrix = load_input('input.txt')
+    display_matrix(input_matrix)
     print()
 
-    input_transposed = transpose_matrix(input_matrix)
-    result = reorder(corpus, input_transposed)
+    transposed_matrix = transpose(input_matrix)
+    reordered_result = rearrange(corpus, transposed_matrix)
 
-    display_output(transpose_matrix(result))
+    print_result(transpose(reordered_result))
 
 if __name__ == "__main__":
     main()
